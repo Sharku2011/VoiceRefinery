@@ -9,7 +9,8 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = 'records'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['DB_CONNECTION'] = None
+app.config['DB_CONNECTIONS'] = dict()
+app.config['CURRENT_DB'] = ""
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -26,24 +27,40 @@ def connect_db():
     if len(db_name) <= 0:
         return Response("Invalid database name", status=400)
 
-    conn = app.config['DB_CONNECTION']
-    if conn is not None:
-        print("Close previous connection to database")
-        conn.close()
-
+    connections = app.config['DB_CONNECTIONS']
+    
     try:
-        sqlite3.connect(f"{db_name}.db")
-        return Response(f"Connected to db {db_name}", status=201)
+        if db_name == app.config['CURRENT_DB'] and app.config['CURRENT_DB'] is not None:
+            conn = app.config['CURRENT_DB']
+        else:
+            conn = sqlite3.connect(f"{db_name}.db", check_same_thread=False)
+            app.config['CURRENT_DB'] = conn
+        connections[db_name] = conn
+        return Response(f"Connected to db {db_name}", status=200)
     except Exception as e:
         return Response(f"{e}", status=400)
     
-@app.route('/disconnect', methods=['GET','POST'])
+@app.route('/disconnect', methods=['POST'])
 def disconnect_db():
-    conn = app.config['DB_CONNECTION']
+    if len(request.get_json()) <= 0:
+        return Response("Invalid request", status=400)
+    db_name = request.get_json()['id']
+    if len(db_name) <= 0:
+        if app.config['CURRENT_DB'] in app.config['DB_CONNECTIONS'].keys():
+            conn = app.config['DB_CONNECTIONS'].pop(app.config['CURRENT_DB'])
+            conn.close()
+            app.config['CURRENT_DB'] = ""
+            return Response(f"Disconnect to database [{app.config['CURRENT_DB']}] successfully", status=200)
+        else:
+            return Response("Failed to remove latest database connection", status=400)
+    
+    conn = app.config['DB_CONNECTIONS'].pop(db_name)
     if conn is None:
         return Response("No valid connection to database. Ignore request...", status=200)
     conn.close()
-    return Response("Disconnect to database successfully", status=200)
+    if db_name == app.config['CURRENT_DB']:
+        app.config['CURRENT_DB'] = ""
+    return Response(f"Disconnect to database [{db_name}] successfully", status=200)
 
 @app.route('/audio', methods=['POST'])
 def upload_file():
@@ -56,7 +73,8 @@ def upload_file():
         return Response('Invalid file name', status=400)
     
     if file:
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+        db_name = app.config['CURRENT_DB']
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], f"{db_name}-{file.filename}"))
         return Response('File successfully uploaded', status=200)
 
 if __name__ == '__main__':
