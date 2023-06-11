@@ -6,9 +6,49 @@
     <title>Audio Recorder</title>
 </head>
 <body>
-    <button id="start">Start Recording</button>
-    <button id="stop" disabled>Stop Recording</button>
+    <label for="name_db">데이터 베이스 이름:</label>
+    <input type="text" id="name_db">
+    <button id="connect_db">DB 연결</button>
+    <button id="disconnect_db">DB 해제</button><br><br>
+    <button id="start">녹음 시작</button><br>
+    <button id="stop" disabled>녹음 중지</button>
     <script>
+
+        let nameDB = document.getElementById("name_db");
+        const connectDB = document.getElementById("connect_db");
+        const disconnectDB = document.getElementById("disconnect_db");
+        disconnectDB.disabled = true;
+
+        connectDB.onclick = async () => {
+            const response = await fetch("/connect", { 
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify( {
+                    id: nameDB.value
+                })
+            }).then((response) => {
+                if (response.status == 200 || response.status == 201) {
+                    nameDB.disabled = true;
+                    connectDB.disabled = true;
+                    disconnectDB.disabled = false;
+                }
+            }).catch((error) => {console.error("Failed to connect database:", error);});
+        }
+
+        disconnectDB.onclick = async () => {
+            const response = await fetch("/disconnect", { 
+                method: "GET"
+            }).then((response) => {
+                if (response.status == 200) {
+                    nameDB.disabled = false;
+                    connectDB.disabled = false;
+                    disconnectDB.disabled = true;
+                }
+            }).catch((error) => {console.error("Failed to disconnect database:", error);});
+        }
+        
         const startButton = document.getElementById("start");
         const stopButton = document.getElementById("stop");
 
@@ -70,7 +110,7 @@
 
         stopButton.onclick = () => {
             mediaRecorder.stop();
-            
+
             startButton.disabled = false;
             stopButton.disabled = true;
         };
