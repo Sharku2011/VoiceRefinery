@@ -31,10 +31,10 @@ def connect_db():
     
     try:
         if db_name == app.config['CURRENT_DB'] and app.config['CURRENT_DB'] is not None:
-            conn = app.config['CURRENT_DB']
+            cur_db_name = db_name
         else:
             conn = sqlite3.connect(f"{db_name}.db", check_same_thread=False)
-            app.config['CURRENT_DB'] = conn
+            app.config['CURRENT_DB'] = db_name
         connections[db_name] = conn
         return Response(f"Connected to db {db_name}", status=200)
     except Exception as e:
@@ -74,7 +74,16 @@ def upload_file():
     
     if file:
         db_name = app.config['CURRENT_DB']
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], f"{db_name}-{file.filename}"))
+        conn = app.config['DB_CONNECTIONS'][db_name]
+        cursor = conn.cursor()
+        cursor.execute(f'''CREATE TABLE IF NOT EXISTS RECORDS (
+                                filename TEXT PRIMARY KEY,
+                                content BLOB NOT NULL
+                                );''')
+
+        compressed = gzip.compress(file.read())
+        cursor.execute(f"INSERT INTO RECORDS VALUES ('{file.filename}',{compressed});")
+        cursor.commit()
         return Response('File successfully uploaded', status=200)
 
 if __name__ == '__main__':
