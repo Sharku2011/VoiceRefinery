@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Recorder</title>
+</head>
+<body>
+    <button id="start">Start Recording</button>
+    <button id="stop" disabled>Stop Recording</button>
+    <script>
+        const startButton = document.getElementById("start");
+        const stopButton = document.getElementById("stop");
+
+        let mediaRecorder;
+        let chunks = [];
+
+        startButton.onclick = async () => {
+            try {
+                const mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const options = {
+                    audioBitsPerSecond: 44100,
+                    mimeType: "audio/webm"
+                }
+
+                mediaRecorder = new MediaRecorder(mediaStream, options || {});
+                mediaRecorder.start();
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        chunks.push(event.data);
+                    } else {
+                        console.log("[MediaRecorder]Invalid data");
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    
+                    const audioBlob = new Blob(chunks, { type: "audio/webm" });
+
+                    // clear chunks for next recording
+                    chunks = [];
+
+                    const timestamp = new Date();
+                    let filename = timestamp.getFullYear()
+                                     + (timestamp.getMonth()+1).toString().padStart(2,'0')
+                                     + timestamp.getDate() 
+                                     + '-' 
+                                     + timestamp.getHours() 
+                                     + timestamp.getMinutes() 
+                                     + timestamp.getSeconds()
+                                     + ".webm";
+
+                    const formData = new FormData();
+                    formData.append("file", audioBlob, filename);
+                    try {
+                        const response = await fetch("/audio", { method: "POST", body: formData });
+                        console.log(await response.text());
+                    } catch (error) {
+                        console.error("Error uploading audio:", error);
+                    }
+                };
+
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } catch (error) {
+                console.error("Error accessing audio input:", error);
+            }
+        };
+
+        stopButton.onclick = () => {
+            mediaRecorder.stop();
+            
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        };
+    </script>
+</body>
+</html>

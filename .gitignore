@@ -1,0 +1,4 @@
+*.wav
+/records
+/.vscode
+/.venv
